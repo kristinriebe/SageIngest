@@ -1,0 +1,521 @@
+/*  
+ *  Copyright (c) 2016, Kristin Riebe <kriebe@aip.de>,
+ *                      E-Science team AIP Potsdam
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  See the NOTICE file distributed with this work for additional
+ *  information regarding copyright ownership. You may obtain a copy
+ *  of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+
+#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>   // sqrt, pow
+#include "sageingest_error.h"
+#include <list>
+//#include <boost/filesystem.hpp>
+//#include <boost/serialization/string.hpp> // needed on erebos for conversion from boost-path to string()
+#include <boost/regex.hpp> // for string regex match/replace to remove redshift from dataSetNames
+
+#include "Sage_Reader.h"
+
+//using namespace boost::filesystem;
+
+//#include <boost/chrono.hpp>
+//#include <cmath>
+#include <boost/date_time/posix_time/posix_time.hpp>
+
+
+namespace Sage {
+    SageReader::SageReader() {
+        //fp = NULL;
+
+        currRow = 0;
+    }
+
+    SageReader::SageReader(string newFileName, int newBswap, int newFileNum, int newBlocksize, vector<string>datafileFieldNames) {
+
+        fileName = newFileName;
+        
+        // just let the user provide a file number for this snapnum/redshift
+        fileNum = newFileNum;
+
+        //fp = NULL;
+
+        bswap = newBswap;
+
+        currRow = 0;
+        countInBlock = 0;   // counts rows in each block
+
+        blocksize = newBlocksize; // size of block in rows, i.e. row number in each block
+
+        // factors for constructing dbId, could/should be read from user input, actually
+        snapnumfactor = 1000;
+        rowfactor = 10000000;
+
+        posfactor = 1.e-3;
+
+        dbId = 0;
+        redshift = 0;
+
+        h = 0.6777; //for MDPL2, Planck cosm.
+
+        rockstarId = 0;
+        depthFirstId = 0;
+        forestId = 0;
+
+
+        openFile(newFileName);
+
+        maxRows = getMeta();
+        //cout << "size of dataSetMap: " << dataSetMap.size() << endl;
+    }
+
+
+    SageReader::~SageReader() {
+        closeFile();
+        // delete data sets? i.e. call DataBlock::deleteData?
+    }
+    
+    void SageReader::openFile(string newFileName) {
+        // open the binary file
+
+        if (fileStream.is_open())
+            fileStream.close();
+
+        // open binary file
+        fileStream.open(newFileName.c_str(), ios::in | ios::binary);
+        
+        if (!(fileStream.is_open())) {
+            SageIngest_error("SageReader: Error in opening file.\n");
+        }
+        
+        fileName = newFileName;
+    }
+    
+    void SageReader::closeFile() {
+        if (fileStream.is_open())
+            fileStream.close();
+    }
+
+    long SageReader::getMeta() {
+
+        assert(fileStream.is_open());
+
+        char memchunk[4];
+        int *GalsPerTree;
+        long mRows;
+
+        fileStream.read(memchunk, sizeof(memchunk));
+        assignInt(&header.Ntrees, memchunk, bswap);
+        
+        fileStream.read(memchunk, sizeof(memchunk));
+        assignInt(&header.NtotGals, memchunk, bswap);
+        
+        // also read num gal. per tree:
+        GalsPerTree = (int *) malloc(header.Ntrees*sizeof(int));
+        cout << "size gals: " << sizeof(GalsPerTree) << endl;
+        fileStream.read((char *) GalsPerTree, header.Ntrees*sizeof(int));
+
+        mRows = header.NtotGals;
+
+        // check:
+        printf("Galaxies in this tree: 0: %d, 1: %d, 2: %d, 3: %d, 500: %d, 1000: %d\n", 
+            GalsPerTree[0], GalsPerTree[1], GalsPerTree[2],GalsPerTree[3], GalsPerTree[500], GalsPerTree[1000]);
+
+
+        // TODO: assign directly, then swapInt()
+
+        return mRows;
+    }
+
+    int SageReader::readNextBlock(long blocksize) {
+        assert(fileStream.is_open());
+ 
+        // read a whole block of data at once, 
+        // more efficient than just reading line by line
+
+        // TODO: implement this!
+       
+       return 1;
+    }
+
+
+    int SageReader::getNextRow() {
+        assert(fileStream.is_open());
+        
+        // read one line // TODO: read line from stored memory block that was read before
+        // into class variable dataRow
+
+        if (currRow == maxRows) {
+            printf("Maximum number of rows (%ld) is reached. It's done.\n", maxRows);
+            return 0;
+        }
+
+        fileStream.read((char *) &datarow, sizeof(GalaxyData));
+        // TODO: byteswap the row
+
+        currRow++;
+        return 1;
+    }
+
+    bool SageReader::getItemInRow(DBDataSchema::DataObjDesc * thisItem, bool applyAsserters, bool applyConverters, void* result) {
+        
+        bool isNull;
+
+        isNull = false;
+
+        //reroute constant items:
+        if(thisItem->getIsConstItem() == true) {
+            getConstItem(thisItem, result);
+            isNull = false;
+        } else if (thisItem->getIsHeaderItem() == true) {
+            printf("We never told you to read headers...\n");
+            exit(EXIT_FAILURE);
+        } else {
+            isNull = getDataItem(thisItem, result);
+        }
+        
+        // assertions and conversions could be applied here
+        // but do not need them now.
+
+        // return value: if true: just NULL is written, result is ignored.
+        // if false: the value in result is used.
+        return isNull;
+    }
+    
+    bool SageReader::getDataItem(DBDataSchema::DataObjDesc * thisItem, void* result) {
+
+        //check if this is "Col1" etc. and if yes, assign corresponding value
+        //the variables are declared already in Pmss_Reader.h 
+        //and the values were read in getNextRow()
+        bool isNull;
+
+        //printf("   counter: fileRowId, id, x,y,z, vx,vy,vz: %d: %ld %ld %f %f %f, %f %f %f\n", 
+        //            counter, fileRowId, id, x,y,z, vx,vy,vz);
+
+        isNull = false;
+        if(thisItem->getDataObjName().compare("dbId") == 0) {
+            *(long*)(result) = dbId;
+        } else if(thisItem->getDataObjName().compare("snapnum") == 0) {
+            *(short*)(result) = datarow.SnapNum;
+        } else if(thisItem->getDataObjName().compare("redshift") == 0) {
+            *(float*)(result) = redshift;
+        } else if(thisItem->getDataObjName().compare("rockstarId") == 0) {
+            *(long*)(result) = rockstarId;
+        } else if(thisItem->getDataObjName().compare("depthFirstId") == 0) {
+            *(long*)(result) = depthFirstId;
+        } else if(thisItem->getDataObjName().compare("forestId") == 0) {
+            *(long*)(result) = forestId;
+        } else if(thisItem->getDataObjName().compare("GalaxyID") == 0) {
+            *(long*)(result) = datarow.GalaxyIndex;
+        } else if(thisItem->getDataObjName().compare("HostHaloID") == 0) {
+            *(long*)(result) = datarow.CtreesHaloID;
+        } else if (thisItem->getDataObjName().compare("MainHaloID") == 0) {
+            *(long*)(result) = datarow.CtreesCentralID;
+        } else if (thisItem->getDataObjName().compare("GalaxyType") == 0) {
+            *(short*)(result) = datarow.Type;
+        } else if (thisItem->getDataObjName().compare("HaloMass") == 0) {
+            *(float*)(result) = datarow.Mvir*1.e10;
+        } else if (thisItem->getDataObjName().compare("Vmax") == 0) {
+            *(float*)(result) = datarow.Vmax;
+        } else if (thisItem->getDataObjName().compare("x") == 0) {
+            *(float*)(result) = datarow.Pos[0];
+        } else if (thisItem->getDataObjName().compare("y") == 0) {
+            *(float*)(result) = datarow.Pos[1];
+        } else if (thisItem->getDataObjName().compare("z") == 0) {
+            *(float*)(result) = datarow.Pos[2];
+        } else if (thisItem->getDataObjName().compare("vx") == 0) {
+            *(float*)(result) = datarow.Vel[0];
+        } else if (thisItem->getDataObjName().compare("vy") == 0) {
+            *(float*)(result) = datarow.Vel[1];
+        } else if (thisItem->getDataObjName().compare("vz") == 0) {
+            *(float*)(result) = datarow.Vel[2];
+        } else if (thisItem->getDataObjName().compare("MstarSpheroid") == 0) {
+            *(float*)(result) = datarow.BulgeMass*1.e10;
+        } else if (thisItem->getDataObjName().compare("MstarDisk") == 0) {
+            *(float*)(result) = (datarow.StellarMass - datarow.BulgeMass)*1.e10;
+        } else if (thisItem->getDataObjName().compare("McoldDisk") == 0) {
+            *(float*)(result) = datarow.ColdGas*1.e10;
+        } else if (thisItem->getDataObjName().compare("Mhot") == 0) {
+            *(float*)(result) = datarow.HotGas*1.e10;
+        } else if (thisItem->getDataObjName().compare("Mbh") == 0) {
+            *(float*)(result) = datarow.BlackHoleMass*1.e10;
+        } else if (thisItem->getDataObjName().compare("SFRspheroid") == 0) {
+            *(float*)(result) = datarow.SfrBulge*h*1.e9;
+        } else if (thisItem->getDataObjName().compare("SFRdisk") == 0) {
+            *(float*)(result) = datarow.SfrDisk*h*1.e9;
+        } else if (thisItem->getDataObjName().compare("SFR") == 0) {
+            *(float*)(result) = (datarow.SfrBulge + datarow.SfrDisk)*h*1.e9;
+        } else if (thisItem->getDataObjName().compare("ZgasSpheroid") == 0) {
+            *(float*)(result) = datarow.SfrBulgeZ;
+        } else if (thisItem->getDataObjName().compare("ZgasDisk") == 0) {
+            *(float*)(result) = datarow.MetalsColdGas/datarow.ColdGas;
+        } else if (thisItem->getDataObjName().compare("MZhotHalo") == 0) {
+            *(float*)(result) = datarow.MetalsHotGas*1.e10;
+        } else if (thisItem->getDataObjName().compare("MZstarSpheroid") == 0) {
+            *(float*)(result) = datarow.MetalsBulgeMass*1.e10;
+        } else if (thisItem->getDataObjName().compare("MZstarDisk") == 0) {
+            *(float*)(result) = (datarow.MetalsStellarMass - datarow.MetalsBulgeMass)*1.e10;
+        } else if (thisItem->getDataObjName().compare("MeanAgeStars") == 0) {
+            *(float*)(result) = datarow.MeanStarAge/h/1.e3;
+        } else if (thisItem->getDataObjName().compare("NInFile") == 0) {
+            *(long*)(result) = NInFile;
+        } else if (thisItem->getDataObjName().compare("fileNum") == 0) {
+            *(int*)(result) = fileNum;
+        } else if (thisItem->getDataObjName().compare("ix") == 0) {
+            *(int*)(result) = 0;
+        } else if (thisItem->getDataObjName().compare("iy") == 0) {
+            *(int*)(result) = 0;
+        } else if (thisItem->getDataObjName().compare("iz") == 0) {
+            *(int*)(result) = 0;
+        } else if (thisItem->getDataObjName().compare("phkey") == 0) {
+            phkey = 0;
+            *(int*)(result) = phkey;
+            // better: let DBIngestor insert Null at this column
+            // => need to return 1, so that Null will be written.
+            isNull = true;
+        } else {
+            printf("Something went wrong in getDataItem(), field %s not found ...\n", thisItem->getDataObjName().c_str());
+            exit(EXIT_FAILURE);
+        }
+
+        return isNull;
+
+    }
+
+    void SageReader::getConstItem(DBDataSchema::DataObjDesc * thisItem, void* result) {
+        memcpy(result, thisItem->getConstData(), DBDataSchema::getByteLenOfDType(thisItem->getDataObjDType()));
+    }
+
+
+    // write part from memoryblock to integer; byteswap, if necessary (TODO: use global 'swap' or locally submit?)
+    int SageReader::assignInt(int *n, char *memblock, int bswap) {
+        
+        unsigned char *cptr,tmp;
+
+        if (sizeof(int) != 4) {
+            fprintf(stderr,"assignInt: sizeof(int)=%ld and not 4. Can't handle that.\n",sizeof(int));
+            return 0;
+        }
+
+        if (!memcpy(n,  memblock, sizeof(int))) {
+            fprintf(stderr,"Error: Encountered end of memory block or other trouble when reading the memory block.\n");
+            return 0;
+        }
+
+        if (bswap) {
+            cptr = (unsigned char *) n;
+            tmp     = cptr[0];
+            cptr[0] = cptr[3];    
+            cptr[3] = tmp;
+            tmp     = cptr[1];
+            cptr[1] = cptr[2];
+            cptr[2] = tmp;
+        }
+
+        return 1;
+    }
+
+    // write part from memoryblock to long; byteswap, if necessary
+    int SageReader::assignLong(long *n, char *memblock, int bswap) {
+        
+        unsigned char *cptr,tmp;
+
+        if (sizeof(long) != 8) {
+            fprintf(stderr,"assignLong: sizeof(long)=%ld and not 8. Can't handle that.\n",sizeof(long));
+            return 0;
+        }
+
+        if (!memcpy(n,  memblock, sizeof(long))) {
+            fprintf(stderr,"Error: Encountered end of memory block or other trouble when reading the memory block.\n");
+            return 0;
+        }
+
+        if (bswap) {
+            cptr = (unsigned char *) n;
+            tmp     = cptr[0];
+            cptr[0] = cptr[7];
+            cptr[7] = tmp;
+            tmp     = cptr[1];
+            cptr[1] = cptr[6];
+            cptr[6] = tmp;
+            tmp     = cptr[2];
+            cptr[2] = cptr[5];
+            cptr[5] = tmp;
+            tmp     = cptr[3];
+            cptr[3] = cptr[4];
+            cptr[4] = tmp;
+        }
+
+        return 1;
+    }
+
+    // write part from memoryblock to float; byteswap, if necessary
+    int SageReader::assignFloat(float *n, char *memblock, int bswap) {
+        
+        unsigned char *cptr,tmp;
+        
+        if (sizeof(float) != 4) {
+            fprintf(stderr,"assignFloat: sizeof(float)=%ld and not 4. Can't handle that.\n",sizeof(float));
+            return 0;
+        }
+        
+        if (!memcpy(n, memblock, sizeof(float))) {
+            printf("Error: Encountered end of memory block or other trouble when reading the memory block.\n");
+            return 0;
+        }
+        
+        if (bswap) {
+            cptr = (unsigned char *) n;
+            tmp     = cptr[0];
+            cptr[0] = cptr[3];    
+            cptr[3] = tmp;
+            tmp     = cptr[1];
+            cptr[1] = cptr[2];
+            cptr[2] = tmp;
+        }
+        return 1;
+    }
+
+    int SageReader::swapInt(int i, int bswap) {
+        unsigned char *cptr,tmp;
+        
+        if ( (int)sizeof(int) != 4 ) {
+            fprintf( stderr,"Swap int: sizeof(int)=%d and not 4\n", (int)sizeof(int) );
+            exit(0);
+        }
+        
+        if (bswap) {
+            cptr = (unsigned char *) &i;
+            tmp     = cptr[0];
+            cptr[0] = cptr[3];
+            cptr[3] = tmp;
+            tmp     = cptr[1];
+            cptr[1] = cptr[2];
+            cptr[2] = tmp;
+        }
+
+        return i;
+    }
+
+
+    long SageReader::swapLong(long i, int bswap) {
+        unsigned char *cptr,tmp;
+        
+        if ( (int)sizeof(long) != 8 ) {
+            fprintf( stderr,"Swap long: sizeof(long)=%d and not 8\n", (int)sizeof(long) );
+            exit(0);
+        }
+        
+        if (bswap) {
+            cptr = (unsigned char *) &i;
+            tmp     = cptr[0];
+            cptr[0] = cptr[7];
+            cptr[7] = tmp;
+            tmp     = cptr[1];
+            cptr[1] = cptr[6];
+            cptr[6] = tmp;
+            tmp     = cptr[2];
+            cptr[2] = cptr[5];
+            cptr[5] = tmp;
+            tmp     = cptr[3];
+            cptr[3] = cptr[4];
+            cptr[4] = tmp;
+        }
+
+        return i;
+    }
+
+    float SageReader::swapFloat(float f, int bswap) {
+        unsigned char *cptr,tmp;
+        
+        if (sizeof(float) != 4) {
+        fprintf(stderr,"Swap float: sizeof(float)=%d and not 4\n",(int)sizeof(float));
+        exit(0);
+        }
+         
+        if (bswap) {
+            cptr = (unsigned char *)&f;
+            tmp     = cptr[0];
+            cptr[0] = cptr[3];
+            cptr[3] = tmp;
+            tmp     = cptr[1];
+            cptr[1] = cptr[2];
+            cptr[2] = tmp;
+        }
+
+        return f;
+    }
+
+/*
+    (GalaxyData *) GalaxyData::byteswap(GalaxyData *galdata, int bswap) {
+        
+        SageReader *sr = new SageReader();
+
+
+        galdata->Snapnum = sr.swapInt(galdata->Snapnum, bswap);
+        // etc.
+        //galdata->Type = swapInt(galdata->Type, bswap);
+        //galdata->GalaxyIndex = swapLong(galdata->GalaxyIndex, bswap);
+        //galdata->CentralGalaxyIndex = swapLong(galdata->CentralGalaxyIndex, bswap);
+        //galdata->CtreesHaloID = swapLong(galdata->CtreesHaloID, bswap);
+        /*int TreeIndex;
+        long CtreesCentralID;
+        int mergeType;
+        int mergeIntoID;
+        int mergeIntoSnapNum;
+        float dT;
+        float Pos[3];
+        float Vel[3];
+        float Spin[3];
+        int Len;
+        float Mvir;
+        float CentralMvir;
+        float Rvir;
+        float Vvir;
+        float Vmax;
+        float VelDisp;
+        float ColdGas;
+        float StellarMass;
+        float BulgeMass;
+        float HotGas;
+        float EjectedMass;
+        float BlackHoleMass;
+        float IntraClusterStars;
+        float MetalsColdGas;
+        float MetalsStellarMass;
+        float MetalsBulgeMass;
+        float MetalsHotGas;
+        float MetalsEjectedMass;
+        float MetalsIntraClusterStars;
+        float SfrDisk;
+        float SfrBulge;
+        float SfrDiskZ;
+        float SfrBulgeZ;
+        float DiskRadius;
+        float Cooling;
+        float Heating;
+        float QuasarModeBHaccretionMass;
+        float TimeOfLastMajorMerger;
+        float TimeOfLastMinorMerger;
+        float OutflowRate;
+        float MeanStarAge;
+        float infallMvir;
+        float infallVvir;
+        float infallVmax;
+        */
+/*    }
+*/
+}
+
