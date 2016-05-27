@@ -42,7 +42,7 @@ namespace Sage {
         currRow = 0;
     }
 
-    SageReader::SageReader(string newFileName, int newBswap, int newFileNum, int newBlocksize, long newMaxRows, vector<string>datafileFieldNames) {
+    SageReader::SageReader(string newFileName, int newBswap, float newH, int newFileNum, int newBlocksize, long newMaxRows, vector<string>datafileFieldNames) {
 
         fileName = newFileName;
         
@@ -58,13 +58,13 @@ namespace Sage {
         blocksize = newBlocksize; // size of block in rows, i.e. row number in each block
 
         // factors for constructing dbId, could/should be read from user input, actually
-        snapnumfactor = 1000;
+        snapnumfactor = 1000; // must be less than max(fileNum from user)! -> 1000 is exactly the number.
         rowfactor = 10000000;
 
         dbId = 0;
         redshift = -1;  // fill in later via DB
 
-        h = 0.6777; //for MDPL2, Planck cosm. => TODO: read from user-data!!
+        h = newH; //for MDPL2, Planck cosm.: 0.6777
 
         rockstarId = 0;
         depthFirstId = 0;
@@ -75,11 +75,20 @@ namespace Sage {
 
         totalRows = getMeta();
 
+        if (maxRows == -1) {
+            maxRows = totalRows;
+        }
+
         if (maxRows > totalRows) {
             printf("WARNING: total number of rows is %ld, but %ld rows were requested. Setting maxRows to %ld.\n",
                 totalRows, maxRows, totalRows);
             maxRows = totalRows;
         }
+
+        // allocate memory for datablock
+        // (only needed once; mem. size won't change after this point, only at
+        // the end there may be less data to be read, which is no problem)
+        datarows = (GalaxyData *) malloc(blocksize*sizeof(GalaxyData));
 
         //cout << "size of dataSetMap: " << dataSetMap.size() << endl;
     }
@@ -87,7 +96,12 @@ namespace Sage {
 
     SageReader::~SageReader() {
         closeFile();
-        // delete data sets? i.e. call DataBlock::deleteData?
+        // delete datablock
+
+        if (datarows) {
+            free(datarows);
+        }
+
     }
     
     void SageReader::openFile(string newFileName) {
@@ -119,61 +133,98 @@ namespace Sage {
         int *GalsPerTree;
         long mRows;
 
-        fileStream.read(memchunk, sizeof(memchunk));
-        assignInt(&header.Ntrees, memchunk, bswap);
-        
-        fileStream.read(memchunk, sizeof(memchunk));
-        assignInt(&header.NtotGals, memchunk, bswap);
+        fileStream.read((char *) &header.Ntrees, sizeof(header.Ntrees));
+        header.Ntrees = swapInt(header.Ntrees, bswap);
+
+        fileStream.read((char *) &header.NtotGals, sizeof(header.NtotGals));
+        header.NtotGals = swapInt(header.NtotGals, bswap);
         
         // also read num gal. per tree:
         GalsPerTree = (int *) malloc(header.Ntrees*sizeof(int));
         //cout << "size gals: " << sizeof(GalsPerTree) << endl;
         fileStream.read((char *) GalsPerTree, header.Ntrees*sizeof(int));
 
+        if (bswap) {
+            for (int i=0; i<header.Ntrees; i++) {
+               GalsPerTree[i] = swapInt(GalsPerTree[i], bswap);
+            }
+        }
+
         mRows = header.NtotGals;
 
         // check:
+        printf("Ntrees, NtotGals: %d %d\n", header.Ntrees, header.NtotGals);
         printf("Galaxies in this tree: 0: %d, 1: %d, 2: %d, 3: %d, 500: %d, 1000: %d\n", 
             GalsPerTree[0], GalsPerTree[1], GalsPerTree[2],GalsPerTree[3], GalsPerTree[500], GalsPerTree[1000]);
-
-
-        // TODO: assign directly, then swapInt()
 
         return mRows;
     }
 
 //#pragma pack(push)    
 //#pragma pack(1)        
-        int SageReader::readNextBlock(long blocksize) {
+    int SageReader::readNextBlock(long blocksize) {
         assert(fileStream.is_open());
  
+        //performance output stuff
+        boost::posix_time::ptime startTime;
+        boost::posix_time::ptime endTime;
+
+        // make sure that we won't exceed the max. number
+        // of rows/total rows in this file:
+        // TODO!
+        blocksize = min(blocksize, maxRows-currRow);
+        if (currRow >= maxRows) {
+            // already reached end of file, no more data available
+            cout << "End of dataset reached. Nothing more to read. Done" << endl;
+            return 0;
+        }
+
         // read a whole block of data at once, 
         // more efficient than just reading line by line
+        startTime = boost::posix_time::microsec_clock::universal_time();
 
-        // TODO: implement this!
-       
-       return 1;
+        if (!fileStream.read((char *) datarows, blocksize*sizeof(GalaxyData)));
+
+        endTime = boost::posix_time::microsec_clock::universal_time();
+        printf("Time for reading (%ld rows): %lld ms\n", blocksize, (long long int) (endTime-startTime).total_milliseconds());
+
+        return blocksize;
     }
 
 
     int SageReader::getNextRow() {
         assert(fileStream.is_open());
         
-        // read one line // TODO: read line from stored memory block that was read before
-        // into class variable dataRow
+        // read one line from already read datablock (see readNextBlock)
+        // readNextBlock returns number of read values
+        if (currRow == 0) {
+            blocksize = readNextBlock(blocksize);
+            countInBlock = 0;
+        } else if (countInBlock == blocksize-1) {
+            // end of block reached, read the next block
+            blocksize = readNextBlock(blocksize);
+            //cout << "nvalues in getNextRow: " << nvalues << endl;
+            countInBlock = 0;
+        } else {
+            //cout << "blocksize: " << blocksize << endl;
+            countInBlock++;
+        }
 
-        if (currRow == maxRows) {
-            printf("Maximum number of rows (%ld) is reached. It's done.\n", maxRows);
+        if (blocksize <= 0) {
+            // might happen if end of file reached in readNextBlock (if currRow >= maxRows in min() statement)
             return 0;
         }
 
-        fileStream.read((char *) &datarow, sizeof(GalaxyData));
+        // if not using readNextBlock:
+        // fileStream.read((char *) &datarow, sizeof(GalaxyData));
+
+        datarow = datarows[countInBlock];
         if (bswap) {
             datarow = byteswap_GalaxyData(&datarow, bswap);
         }
-        //cout << "size of GalaxyData: " << sizeof(GalaxyData) << endl;
 
-        currRow++;
+        currRow++; // global counter for all rows
+
         return 1;
     }
 //#pragma pack(pop) 
@@ -209,10 +260,8 @@ namespace Sage {
         //and the values were read in getNextRow()
         bool isNull;
 
-        //printf("   counter: fileRowId, id, x,y,z, vx,vy,vz: %d: %ld %ld %f %f %f, %f %f %f\n", 
-        //            counter, fileRowId, id, x,y,z, vx,vy,vz);
-
         isNull = false;
+
         if(thisItem->getDataObjName().compare("dbId") == 0) {
             *(long*)(result) = (datarow.SnapNum * snapnumfactor + fileNum) * rowfactor + currRow;
         } else if(thisItem->getDataObjName().compare("snapnum") == 0) {
@@ -220,7 +269,7 @@ namespace Sage {
         } else if(thisItem->getDataObjName().compare("redshift") == 0) {
             *(float*)(result) = redshift;
         } else if(thisItem->getDataObjName().compare("rockstarId") == 0) {
-            *(long*)(result) = rockstarId;
+            *(long*)(result) = datarow.CtreesHaloID; // should be the same as HostHaloId
         } else if(thisItem->getDataObjName().compare("depthFirstId") == 0) {
             *(long*)(result) = depthFirstId;
         } else if(thisItem->getDataObjName().compare("forestId") == 0) {
@@ -282,7 +331,7 @@ namespace Sage {
         } else if (thisItem->getDataObjName().compare("fileNum") == 0) {
             *(int*)(result) = datarow.SnapNum * snapnumfactor + fileNum;
         } else if (thisItem->getDataObjName().compare("ix") == 0) {
-            *(int*)(result) = 0;
+            *(int*)(result) = 0; // if box size and ngrid was provided, we could calculate it here directly
         } else if (thisItem->getDataObjName().compare("iy") == 0) {
             *(int*)(result) = 0;
         } else if (thisItem->getDataObjName().compare("iz") == 0) {

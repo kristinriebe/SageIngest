@@ -47,6 +47,7 @@ int main (int argc, const char * argv[])
     int fileNum;
     int swap;
     long maxRows;
+    float h;
     
     int user_blocksize;
 
@@ -113,9 +114,10 @@ int main (int argc, const char * argv[])
                 ("mapFile,f", po::value<string>(&mapFile)->default_value(""), "path to the mapping file")
                 ("isDryRun", po::value<bool>(&isDryRun)->default_value(0), "should this run be carried out as a dry run (no data added to database)? [default: 0]")
                 ("fileNum", po::value<int>(&fileNum)->default_value(0), "number of the data file (e.g. if multiple files per snapshot, mainly for checking purposes)")
-                ("blocksize", po::value<int32_t>(&user_blocksize)->default_value(100000), "number of rows to be read in one block (for each dataset); dataset * blocksize * dataType must fit into memory [default: 10000]")
+                ("blocksize", po::value<int32_t>(&user_blocksize)->default_value(10000), "number of rows to be read in one block (for each dataset); dataset * blocksize * dataType must fit into memory [default: 10000]")
                 ("swap,w", po::value<int32_t>(&swap)->default_value(0), "flag for byte swapping (default 0)")
-                ("maxRows,m", po::value<int64_t>(&maxRows)->default_value(0), "maximum number of rows to be read (default 0)")
+                ("Planck,h", po::value<float>(&h)->default_value(0.6777), "Planck's constant h (e.g. 0.6777 [default] for simulation MDPL2)")
+                ("maxRows,m", po::value<int64_t>(&maxRows)->default_value(-1), "maximum number of rows to be read (default: -1 = read all)")
                 ("resumeMode,R", po::value<bool>(&resumeMode)->default_value(0), "try to resume ingest on failed connection (turns off transactions)? [default: 0]")
                 ("validateSchema,v", po::value<bool>(&askUserToValidateRead)->default_value(1), "ask user to validate the schema mapping [default: 1]")
                 ;
@@ -157,10 +159,13 @@ int main (int argc, const char * argv[])
     if (path != "") {
         cout << "Path: " << path << endl;
     }
-    cout << "Blocksize: " << user_blocksize << endl;
+    cout << "Block size: " << user_blocksize << endl;
+    cout << "File number: " << fileNum << endl;
+    cout << "Byte swap: " << swap << endl;
+    cout << "Planck h: " << h << endl;
+    cout << "max. rows: " << maxRows << endl;
 
     cout << endl;
-
    
     DBAsserter::AsserterFactory * assertFac = new DBAsserter::AsserterFactory;
     DBConverter::ConverterFactory * convFac = new DBConverter::ConverterFactory;
@@ -176,7 +181,7 @@ int main (int argc, const char * argv[])
     thisSchema = thisSchemaMapper->generateSchema(dbase, table);
 
     //now setup the file reader
-    SageReader *thisReader = new SageReader(dataFile, swap, fileNum, user_blocksize, maxRows, databaseFieldNames);
+    SageReader *thisReader = new SageReader(dataFile, swap, h, fileNum, user_blocksize, maxRows, databaseFieldNames);
     dbServer = adaptorFac.getDBAdaptors(system);
     
     sageIngestor = new DBIngest::DBIngestor(thisSchema, thisReader, dbServer);

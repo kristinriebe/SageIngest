@@ -38,10 +38,14 @@ build/SageIngest.x  -s mysql -D TestDB -T Sag_test -U myusername -P mypassword -
 
 Replace *myusername* and *mypassword* with your own credentials for your own database. 
 
-The important new options are:   
+The important new options are:  
 
-`-w`: 0 if no byteswapping, 1 if byteswaping is necessary  p  
+`--swap`, `-w`: 0 if no byteswapping, 1 if byteswaping is necessary  p  
+`--Planck`, `-h`: Planck's constant h (e.g. 0.6777 [default] for simulation MDPL2)  
 `--blocksize`: number of rows to be read in one block; make sure that it fits into the memory of your machine [default: 1000]  
+`-m`, `--maxRows`: maximum number of rows to be read; not more than total num. 
+of rows will be read; used mainly for testing  
+
 
 
 TODO

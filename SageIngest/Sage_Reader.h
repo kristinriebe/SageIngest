@@ -132,6 +132,7 @@ namespace Sage {
         long countInBlock;
         int countSnap;
 
+        GalaxyData *datarows;    // for reading and storing a whole block of data
         GalaxyData datarow; // stores one row of the read data
 
         float scale;
@@ -152,7 +153,7 @@ namespace Sage {
 
     public:
         SageReader();
-        SageReader(string newFileName, int bswap, int fileNum, int newBlocksize, long maxRows, vector<string> datafileFieldNames);
+        SageReader(string newFileName, int bswap, float newH, int fileNum, int newBlocksize, long maxRows, vector<string> datafileFieldNames);
         // DBDataSchema::Schema*&
         ~SageReader();
 
