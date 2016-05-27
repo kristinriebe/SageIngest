@@ -61,12 +61,10 @@ namespace Sage {
         snapnumfactor = 1000;
         rowfactor = 10000000;
 
-        posfactor = 1.e-3;
-
         dbId = 0;
-        redshift = 0;
+        redshift = -1;  // fill in later via DB
 
-        h = 0.6777; //for MDPL2, Planck cosm.
+        h = 0.6777; //for MDPL2, Planck cosm. => TODO: read from user-data!!
 
         rockstarId = 0;
         depthFirstId = 0;
@@ -216,7 +214,7 @@ namespace Sage {
 
         isNull = false;
         if(thisItem->getDataObjName().compare("dbId") == 0) {
-            *(long*)(result) = dbId;
+            *(long*)(result) = (datarow.SnapNum * snapnumfactor + fileNum) * rowfactor + currRow;
         } else if(thisItem->getDataObjName().compare("snapnum") == 0) {
             *(short*)(result) = datarow.SnapNum;
         } else if(thisItem->getDataObjName().compare("redshift") == 0) {
@@ -280,9 +278,9 @@ namespace Sage {
         } else if (thisItem->getDataObjName().compare("MeanAgeStars") == 0) {
             *(float*)(result) = datarow.MeanStarAge/h/1.e3;
         } else if (thisItem->getDataObjName().compare("NInFile") == 0) {
-            *(long*)(result) = NInFile;
+            *(long*)(result) = currRow;
         } else if (thisItem->getDataObjName().compare("fileNum") == 0) {
-            *(int*)(result) = fileNum;
+            *(int*)(result) = datarow.SnapNum * snapnumfactor + fileNum;
         } else if (thisItem->getDataObjName().compare("ix") == 0) {
             *(int*)(result) = 0;
         } else if (thisItem->getDataObjName().compare("iy") == 0) {

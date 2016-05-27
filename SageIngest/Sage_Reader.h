@@ -121,7 +121,6 @@ namespace Sage {
 
         long snapnumfactor;
         long rowfactor;
-        float posfactor; // factor to multiply with coordinates, to get correct units (Mpc from kpc)
 
         vector<string> dataSetNames; // vector containing names of the HDF5 datasets
         map<string,int> dataSetMap;
