@@ -44,11 +44,11 @@ typedef struct {
 } SageHeader;
 
 namespace Sage {
-    
-    // galaxy data structure
-    class GalaxyData {
 
-    public:
+//#pragma pack(push)  // push current alignment to stack; may not work with each and every compiler!
+//#pragma pack(1)     // set alignment to 1 byte boundary
+    // galaxy data structure
+    typedef struct GalaxyData {
         int SnapNum;
         int Type;
         long GalaxyIndex;
@@ -98,15 +98,8 @@ namespace Sage {
         float infallMvir;
         float infallVvir;
         float infallVmax;
-
-    public:
-        GalaxyData() {};
-        ~GalaxyData() {};
-
-        //(GalaxyData *) byteswap(GalaxyData *datarow, int bswap);
-
-    };
-
+    } GalaxyData;
+//#pragma pack(pop)   // restore original alignment from stack
 
     class SageReader : public Reader {
     private:
@@ -122,6 +115,9 @@ namespace Sage {
         long numDataSets; // number of DataSets (= row fields, = columns) in each output
         long nvalues; // values in one dataset (assume the same number for each dataset of the same output group (redshift))
         long blocksize; // number of elements in one read-block, should be small enough to fit (blocksize * number of datasets) into memory
+        long maxRows; // max. number of rows per file, usually used for testing
+
+        long totalRows; // total number of rows in data file
 
         long snapnumfactor;
         long rowfactor;
@@ -136,8 +132,6 @@ namespace Sage {
         long currRow;
         long countInBlock;
         int countSnap;
-
-        long maxRows;
 
         GalaxyData datarow; // stores one row of the read data
 
@@ -159,7 +153,7 @@ namespace Sage {
 
     public:
         SageReader();
-        SageReader(string newFileName, int bswap, int fileNum, int newBlocksize, vector<string> datafileFieldNames);
+        SageReader(string newFileName, int bswap, int fileNum, int newBlocksize, long maxRows, vector<string> datafileFieldNames);
         // DBDataSchema::Schema*&
         ~SageReader();
 
@@ -184,6 +178,7 @@ namespace Sage {
         //void setCurrRow(long n);
         //long getCurrRow();
         //long getNumOutputs();
+        GalaxyData byteswap_GalaxyData(GalaxyData *galdata, int bswap);
 
         int assignInt(int *n, char *memblock, int bswap);
         int assignLong(long int *n, char *memblock, int bswap);

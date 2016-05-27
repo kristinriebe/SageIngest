@@ -38,21 +38,19 @@
 
 namespace Sage {
     SageReader::SageReader() {
-        //fp = NULL;
 
         currRow = 0;
     }
 
-    SageReader::SageReader(string newFileName, int newBswap, int newFileNum, int newBlocksize, vector<string>datafileFieldNames) {
+    SageReader::SageReader(string newFileName, int newBswap, int newFileNum, int newBlocksize, long newMaxRows, vector<string>datafileFieldNames) {
 
         fileName = newFileName;
         
         // just let the user provide a file number for this snapnum/redshift
         fileNum = newFileNum;
-
-        //fp = NULL;
-
         bswap = newBswap;
+
+        maxRows = newMaxRows;
 
         currRow = 0;
         countInBlock = 0;   // counts rows in each block
@@ -77,7 +75,14 @@ namespace Sage {
 
         openFile(newFileName);
 
-        maxRows = getMeta();
+        totalRows = getMeta();
+
+        if (maxRows > totalRows) {
+            printf("WARNING: total number of rows is %ld, but %ld rows were requested. Setting maxRows to %ld.\n",
+                totalRows, maxRows, totalRows);
+            maxRows = totalRows;
+        }
+
         //cout << "size of dataSetMap: " << dataSetMap.size() << endl;
     }
 
@@ -124,7 +129,7 @@ namespace Sage {
         
         // also read num gal. per tree:
         GalsPerTree = (int *) malloc(header.Ntrees*sizeof(int));
-        cout << "size gals: " << sizeof(GalsPerTree) << endl;
+        //cout << "size gals: " << sizeof(GalsPerTree) << endl;
         fileStream.read((char *) GalsPerTree, header.Ntrees*sizeof(int));
 
         mRows = header.NtotGals;
@@ -139,7 +144,9 @@ namespace Sage {
         return mRows;
     }
 
-    int SageReader::readNextBlock(long blocksize) {
+//#pragma pack(push)    
+//#pragma pack(1)        
+        int SageReader::readNextBlock(long blocksize) {
         assert(fileStream.is_open());
  
         // read a whole block of data at once, 
@@ -163,12 +170,15 @@ namespace Sage {
         }
 
         fileStream.read((char *) &datarow, sizeof(GalaxyData));
-        // TODO: byteswap the row
+        if (bswap) {
+            datarow = byteswap_GalaxyData(&datarow, bswap);
+        }
+        //cout << "size of GalaxyData: " << sizeof(GalaxyData) << endl;
 
         currRow++;
         return 1;
     }
-
+//#pragma pack(pop) 
     bool SageReader::getItemInRow(DBDataSchema::DataObjDesc * thisItem, bool applyAsserters, bool applyConverters, void* result) {
         
         bool isNull;
@@ -458,64 +468,64 @@ namespace Sage {
         return f;
     }
 
-/*
-    (GalaxyData *) GalaxyData::byteswap(GalaxyData *galdata, int bswap) {
+
+    GalaxyData SageReader::byteswap_GalaxyData(GalaxyData *galdata, int bswap) {
+
+        GalaxyData newdata;
+        newdata.SnapNum = swapInt(galdata->SnapNum, bswap);
+        newdata.Type = swapInt(galdata->Type, bswap);
+        newdata.GalaxyIndex = swapLong(galdata->GalaxyIndex, bswap);
+        newdata.CentralGalaxyIndex = swapLong(galdata->CentralGalaxyIndex, bswap);
+        newdata.CtreesHaloID = swapLong(galdata->CtreesHaloID, bswap);
+        newdata.TreeIndex = swapInt(galdata->TreeIndex, bswap);
+        newdata.CtreesCentralID = swapLong(galdata->CtreesCentralID, bswap);
+        newdata.mergeType = swapInt(galdata->mergeType, bswap);
+        newdata.mergeIntoID = swapInt(galdata->mergeIntoID, bswap);
+        newdata.mergeIntoSnapNum = swapInt(galdata->mergeIntoSnapNum, bswap);
+        newdata.dT = swapFloat(galdata->dT, bswap);
+        for (int i=0; i<3; i++) {
+            newdata.Pos[i] = swapFloat(galdata->Pos[i], bswap);
+            newdata.Vel[i] = swapFloat(galdata->Vel[i], bswap);
+            newdata.Spin[i] = swapFloat(galdata->Spin[i], bswap);
+        }
+        newdata.Len  = swapInt(galdata->Len, bswap);
+        newdata.Mvir = swapFloat(galdata->Mvir, bswap);
+        newdata.CentralMvir = swapFloat(galdata->CentralMvir, bswap);
+        newdata.Rvir = swapFloat(galdata->Rvir, bswap);
+        newdata.Vvir = swapFloat(galdata->Vvir, bswap);
+        newdata.Vmax = swapFloat(galdata->Vmax, bswap);
+        newdata.VelDisp = swapFloat(galdata->VelDisp, bswap);
+        newdata.ColdGas = swapFloat(galdata->ColdGas, bswap);
+        newdata.StellarMass = swapFloat(galdata->StellarMass, bswap);
+        newdata.BulgeMass = swapFloat(galdata->BulgeMass, bswap);
+        newdata.HotGas = swapFloat(galdata->HotGas, bswap);
+        newdata.EjectedMass = swapFloat(galdata->EjectedMass, bswap);
+        newdata.BlackHoleMass = swapFloat(galdata->BlackHoleMass, bswap);
+        newdata.IntraClusterStars = swapFloat(galdata->IntraClusterStars, bswap);
+        newdata.MetalsColdGas = swapFloat(galdata->MetalsColdGas, bswap);
+        newdata.MetalsStellarMass = swapFloat(galdata->MetalsStellarMass, bswap);
+        newdata.MetalsBulgeMass = swapFloat(galdata->MetalsBulgeMass, bswap);
+        newdata.MetalsHotGas = swapFloat(galdata->MetalsHotGas, bswap);
+        newdata.MetalsEjectedMass = swapFloat(galdata->MetalsEjectedMass, bswap);
+        newdata.MetalsIntraClusterStars = swapFloat(galdata->MetalsIntraClusterStars, bswap);
+        newdata.SfrDisk = swapFloat(galdata->SfrDisk, bswap);
+        newdata.SfrBulge = swapFloat(galdata->SfrBulge, bswap);
+        newdata.SfrDiskZ = swapFloat(galdata->SfrDiskZ, bswap);
+        newdata.SfrBulgeZ = swapFloat(galdata->SfrBulgeZ, bswap);
+        newdata.DiskRadius = swapFloat(galdata->DiskRadius, bswap);
+        newdata.Cooling = swapFloat(galdata->Cooling, bswap);
+        newdata.Heating = swapFloat(galdata->Heating, bswap);
+        newdata.QuasarModeBHaccretionMass = swapFloat(galdata->QuasarModeBHaccretionMass, bswap);
+        newdata.TimeOfLastMajorMerger = swapFloat(galdata->TimeOfLastMajorMerger, bswap);
+        newdata.TimeOfLastMinorMerger = swapFloat(galdata->TimeOfLastMinorMerger, bswap);
+        newdata.OutflowRate = swapFloat(galdata->OutflowRate, bswap);
+        newdata.MeanStarAge = swapFloat(galdata->MeanStarAge, bswap);
+        newdata.infallMvir = swapFloat(galdata->infallMvir, bswap);
+        newdata.infallVvir = swapFloat(galdata->infallVvir, bswap);
+        newdata.infallVmax = swapFloat(galdata->infallVmax, bswap);
         
-        SageReader *sr = new SageReader();
+        return newdata;
+    }
 
-
-        galdata->Snapnum = sr.swapInt(galdata->Snapnum, bswap);
-        // etc.
-        //galdata->Type = swapInt(galdata->Type, bswap);
-        //galdata->GalaxyIndex = swapLong(galdata->GalaxyIndex, bswap);
-        //galdata->CentralGalaxyIndex = swapLong(galdata->CentralGalaxyIndex, bswap);
-        //galdata->CtreesHaloID = swapLong(galdata->CtreesHaloID, bswap);
-        /*int TreeIndex;
-        long CtreesCentralID;
-        int mergeType;
-        int mergeIntoID;
-        int mergeIntoSnapNum;
-        float dT;
-        float Pos[3];
-        float Vel[3];
-        float Spin[3];
-        int Len;
-        float Mvir;
-        float CentralMvir;
-        float Rvir;
-        float Vvir;
-        float Vmax;
-        float VelDisp;
-        float ColdGas;
-        float StellarMass;
-        float BulgeMass;
-        float HotGas;
-        float EjectedMass;
-        float BlackHoleMass;
-        float IntraClusterStars;
-        float MetalsColdGas;
-        float MetalsStellarMass;
-        float MetalsBulgeMass;
-        float MetalsHotGas;
-        float MetalsEjectedMass;
-        float MetalsIntraClusterStars;
-        float SfrDisk;
-        float SfrBulge;
-        float SfrDiskZ;
-        float SfrBulgeZ;
-        float DiskRadius;
-        float Cooling;
-        float Heating;
-        float QuasarModeBHaccretionMass;
-        float TimeOfLastMajorMerger;
-        float TimeOfLastMinorMerger;
-        float OutflowRate;
-        float MeanStarAge;
-        float infallMvir;
-        float infallVvir;
-        float infallVmax;
-        */
-/*    }
-*/
 }
 

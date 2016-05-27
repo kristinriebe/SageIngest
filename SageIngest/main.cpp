@@ -46,6 +46,7 @@ int main (int argc, const char * argv[])
     int ngrid;
     int fileNum;
     int swap;
+    long maxRows;
     
     int user_blocksize;
 
@@ -114,6 +115,7 @@ int main (int argc, const char * argv[])
                 ("fileNum", po::value<int>(&fileNum)->default_value(0), "number of the data file (e.g. if multiple files per snapshot, mainly for checking purposes)")
                 ("blocksize", po::value<int32_t>(&user_blocksize)->default_value(100000), "number of rows to be read in one block (for each dataset); dataset * blocksize * dataType must fit into memory [default: 10000]")
                 ("swap,w", po::value<int32_t>(&swap)->default_value(0), "flag for byte swapping (default 0)")
+                ("maxRows,m", po::value<int64_t>(&maxRows)->default_value(0), "maximum number of rows to be read (default 0)")
                 ("resumeMode,R", po::value<bool>(&resumeMode)->default_value(0), "try to resume ingest on failed connection (turns off transactions)? [default: 0]")
                 ("validateSchema,v", po::value<bool>(&askUserToValidateRead)->default_value(1), "ask user to validate the schema mapping [default: 1]")
                 ;
@@ -174,7 +176,7 @@ int main (int argc, const char * argv[])
     thisSchema = thisSchemaMapper->generateSchema(dbase, table);
 
     //now setup the file reader
-    SageReader *thisReader = new SageReader(dataFile, swap, fileNum, user_blocksize, databaseFieldNames);
+    SageReader *thisReader = new SageReader(dataFile, swap, fileNum, user_blocksize, maxRows, databaseFieldNames);
     dbServer = adaptorFac.getDBAdaptors(system);
     
     sageIngestor = new DBIngest::DBIngestor(thisSchema, thisReader, dbServer);
