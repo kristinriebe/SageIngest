@@ -158,8 +158,8 @@ namespace Sage {
 
         // check:
         printf("Ntrees, NtotGals: %d %d\n", header.Ntrees, header.NtotGals);
-        printf("Galaxies in this tree: 0: %d, 1: %d, 2: %d, 3: %d, 500: %d, 1000: %d\n", 
-            GalsPerTree[0], GalsPerTree[1], GalsPerTree[2],GalsPerTree[3], GalsPerTree[500], GalsPerTree[1000]);
+        //printf("Galaxies in this tree: 0: %d, 1: %d, 2: %d, 3: %d\n"; // 500: %d, 1000: %d\n", 
+        //    GalsPerTree[0], GalsPerTree[1], GalsPerTree[2],GalsPerTree[3], GalsPerTree[500], GalsPerTree[1000]);
 
         return mRows;
     }
@@ -301,6 +301,8 @@ namespace Sage {
             *(float*)(result) = datarow.Mvir*1.e10;
         } else if (thisItem->getDataObjName().compare("Vmax") == 0) {
             *(float*)(result) = datarow.Vmax;
+        } else if (thisItem->getDataObjName().compare("spin") == 0) {
+            *(float*)(result) = sqrt( datarow.Spin[0]*datarow.Spin[0] + datarow.Spin[1]*datarow.Spin[1] + datarow.Spin[2]*datarow.Spin[2] ) / (sqrt(2)*datarow.Rvir*datarow.Vvir);
         } else if (thisItem->getDataObjName().compare("x") == 0) {
             *(float*)(result) = datarow.Pos[0];
         } else if (thisItem->getDataObjName().compare("y") == 0) {

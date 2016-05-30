@@ -10,6 +10,7 @@ MainHaloID BIGINT NOT NULL,
 GalaxyType TINYINT NOT NULL,
 HaloMass FLOAT NOT NULL,
 Vmax FLOAT NOT NULL,
+spin FLOAT NOT NULL,
 x FLOAT NOT NULL,
 y FLOAT NOT NULL,
 z FLOAT NOT NULL,
@@ -18,7 +19,6 @@ vy FLOAT NOT NULL,
 vz FLOAT NOT NULL,
 MstarSpheroid FLOAT NOT NULL,
 MstarDisk FLOAT NOT NULL,
--- McoldSpheroid FLOAT NOT NULL,
 McoldDisk FLOAT NOT NULL,
 Mhot FLOAT NOT NULL,
 Mbh FLOAT NOT NULL,
@@ -38,5 +38,3 @@ iy INTEGER NULL,
 iz INTEGER NULL,
 phkey BIGINT NULL
 ) ENGINE=MyISAM;
--- For the MySQL database, REAL is a synonym for DOUBLE.
--- But rather use DOUBLE here for avoiding confusion.

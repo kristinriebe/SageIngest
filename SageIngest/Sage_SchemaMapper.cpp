@@ -108,6 +108,10 @@ namespace Sage {
         dataField.type = "FLOAT";
         databaseFields.push_back(dataField);
 
+        dataField.name = "spin";
+        dataField.type = "FLOAT";
+        databaseFields.push_back(dataField);
+
         dataField.name = "x";
         dataField.type = "FLOAT";
         databaseFields.push_back(dataField);
