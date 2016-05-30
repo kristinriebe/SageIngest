@@ -70,6 +70,8 @@ namespace Sage {
         depthFirstId = 0;
         forestId = 0;
 
+        snapnum = 0; // should always be the same, for each datarow
+
 
         openFile(newFileName);
 
@@ -88,7 +90,10 @@ namespace Sage {
         // allocate memory for datablock
         // (only needed once; mem. size won't change after this point, only at
         // the end there may be less data to be read, which is no problem)
-        datarows = (GalaxyData *) malloc(blocksize*sizeof(GalaxyData));
+        if (!(datarows = (GalaxyData *) malloc(blocksize*sizeof(GalaxyData))) ) {
+            SageIngest_error("SageReader: Error in allocating memory.\n");
+            exit(0);
+        }
 
         //cout << "size of dataSetMap: " << dataSetMap.size() << endl;
     }
@@ -141,7 +146,6 @@ namespace Sage {
         
         // also read num gal. per tree:
         GalsPerTree = (int *) malloc(header.Ntrees*sizeof(int));
-        //cout << "size gals: " << sizeof(GalsPerTree) << endl;
         fileStream.read((char *) GalsPerTree, header.Ntrees*sizeof(int));
 
         if (bswap) {
@@ -160,8 +164,6 @@ namespace Sage {
         return mRows;
     }
 
-//#pragma pack(push)    
-//#pragma pack(1)        
     int SageReader::readNextBlock(long blocksize) {
         assert(fileStream.is_open());
  
@@ -194,12 +196,15 @@ namespace Sage {
 
     int SageReader::getNextRow() {
         assert(fileStream.is_open());
-        
+
         // read one line from already read datablock (see readNextBlock)
         // readNextBlock returns number of read values
         if (currRow == 0) {
             blocksize = readNextBlock(blocksize);
             countInBlock = 0;
+
+            // store the snapnum in global variable for checking reading
+            snapnum = datarows[countInBlock].SnapNum;
         } else if (countInBlock == blocksize-1) {
             // end of block reached, read the next block
             blocksize = readNextBlock(blocksize);
@@ -227,7 +232,7 @@ namespace Sage {
 
         return 1;
     }
-//#pragma pack(pop) 
+
     bool SageReader::getItemInRow(DBDataSchema::DataObjDesc * thisItem, bool applyAsserters, bool applyConverters, void* result) {
         
         bool isNull;
@@ -265,6 +270,16 @@ namespace Sage {
         if(thisItem->getDataObjName().compare("dbId") == 0) {
             *(long*)(result) = (datarow.SnapNum * snapnumfactor + fileNum) * rowfactor + currRow;
         } else if(thisItem->getDataObjName().compare("snapnum") == 0) {
+            if (datarow.SnapNum != snapnum) {
+                ostringstream message;
+                message << "SageReader: Value for snapnum in this row ("
+                    << datarow.SnapNum << ") is not the same as in first row ("
+                    << snapnum << ")." << endl
+                    << "Please check the data reader! (Possible issues with little/big endian (byteswap) or 32/64-bit architecture or byte-alignment?)"
+                    << endl;
+                SageIngest_error(message.str().c_str());
+                exit(EXIT_FAILURE);
+            }
             *(short*)(result) = datarow.SnapNum;
         } else if(thisItem->getDataObjName().compare("redshift") == 0) {
             *(float*)(result) = redshift;
@@ -348,13 +363,11 @@ namespace Sage {
         }
 
         return isNull;
-
     }
 
     void SageReader::getConstItem(DBDataSchema::DataObjDesc * thisItem, void* result) {
         memcpy(result, thisItem->getConstData(), DBDataSchema::getByteLenOfDType(thisItem->getDataObjDType()));
     }
-
 
     // write part from memoryblock to integer; byteswap, if necessary (TODO: use global 'swap' or locally submit?)
     int SageReader::assignInt(int *n, char *memblock, int bswap) {

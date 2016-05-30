@@ -45,9 +45,17 @@ typedef struct {
 
 namespace Sage {
 
-//#pragma pack(push)  // push current alignment to stack; may not work with each and every compiler!
-//#pragma pack(1)     // set alignment to 1 byte boundary
     // galaxy data structure
+#pragma pack(push)  // push current alignment to stack; may not work with each
+                    // and every compiler!
+#pragma pack(8)     // set alignment to 8 bytes; usually it should automatically
+                    // be set to the largest element in the structure, but I do
+                    // not want to take any chances; may need to adjust this if
+                    // data is written by a system/compiler with different byte-
+                    // alignment settings
+                    // Comment out this line, if you are sure that you are
+                    // reading the data with the same system/compiler as what
+                    // was used for writing.
     typedef struct GalaxyData {
         int SnapNum;
         int Type;
@@ -99,7 +107,7 @@ namespace Sage {
         float infallVvir;
         float infallVmax;
     } GalaxyData;
-//#pragma pack(pop)   // restore original alignment from stack
+#pragma pack(pop) // restore original alignment from stack
 
     class SageReader : public Reader {
     private:
@@ -150,6 +158,8 @@ namespace Sage {
 
         float h;
         int bswap;
+
+        int snapnum;
 
     public:
         SageReader();
