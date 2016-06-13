@@ -16,9 +16,9 @@ Data files
 There are usually a number of files per snapshot, either grouped together in subdirectories or all in the same directory. The snapshot number is given as one of the fields in the data file.
 The column names roughly correspond to the names in the database table for most columns. Some columns are ignored for the database, though, some more are added (see getDataItem in SageReader.cpp).
 
-Features
+WARNING
 ---------
-TBD
+Byte-alignment is set to 8 inside the code, since this is what was (automatically) used by the data creators when writing the C-structures into data files. May need to be adjusted for different versions of the data. 
 
 Installation
 --------------

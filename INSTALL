@@ -14,5 +14,5 @@ make
 
 Alternatively, you can adjust the paths also directly in CMakeLists.txt.
 
-Then you can call "GalacticusIngest" with command line parameters as given in the code.
+Then you can call "SageIngest" with command line parameters as given in the code.
 See the README for an example.
