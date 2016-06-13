@@ -46,6 +46,7 @@ typedef struct {
 namespace Sage {
 
     // galaxy data structure
+    // This structure may change with each data release!
 #pragma pack(push)  // push current alignment to stack; may not work with each
                     // and every compiler!
 #pragma pack(8)     // set alignment to 8 bytes; usually it should automatically
@@ -63,6 +64,9 @@ namespace Sage {
         long CentralGalaxyIndex;
         long CtreesHaloID;
         int TreeIndex;
+        // Here follow 4 padding bytes in the data, therefore use 
+        // 8-byte-alignment (see above).
+        // Need to check this again for each new data release.
         long CtreesCentralID;
         int mergeType;
         int mergeIntoID;
