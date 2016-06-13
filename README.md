@@ -1,11 +1,11 @@
-SagIngest
+SageIngest
 ================
 
-This code uses the DBIngestor library (https://github.com/aipescience/DBIngestor) to ingest SAGE catalogues (semi-analytical galaxies from cosmological simulations) into a database.
+This code uses the DBIngestor library (https://github.com/aipescience/DBIngestor) to ingest SAGE catalogues (= Semi-Analytic Galaxy Evolution data from cosmological simulations) into a database.
 
 These catalogues have a custom binary format, see https://github.com/darrencroton/sage for the original code and https://github.com/darrencroton/sage/blob/master/output/allresults.py for a Python read routine.
 
-The data file to database field mapping is done directly in the reader/schema-mapper. (No additional map-file.)
+The data file to database field mapping is done directly in the reader/schema-mapper (no additional map-file).
 
 For any questions, please contact me at
 Kristin Riebe, kriebe@aip.de
