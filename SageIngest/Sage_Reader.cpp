@@ -284,7 +284,7 @@ namespace Sage {
         } else if(thisItem->getDataObjName().compare("redshift") == 0) {
             *(float*)(result) = redshift;
         } else if(thisItem->getDataObjName().compare("rockstarId") == 0) {
-            *(long*)(result) = datarow.CtreesHaloID; // should be the same as HostHaloId
+            *(long*)(result) = abs(datarow.CtreesHaloID); // should be the same as HostHaloId, except or the sign
         } else if(thisItem->getDataObjName().compare("depthFirstId") == 0) {
             *(long*)(result) = depthFirstId;
         } else if(thisItem->getDataObjName().compare("forestId") == 0) {
