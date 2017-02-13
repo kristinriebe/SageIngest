@@ -84,6 +84,14 @@ namespace Sage {
         dataField.type = "BIGINT";
         databaseFields.push_back(dataField);
 
+        dataField.name = "forestId";
+        dataField.type = "BIGINT";
+        databaseFields.push_back(dataField);
+
+        dataField.name = "depthFirstId";
+        dataField.type = "BIGINT";
+        databaseFields.push_back(dataField);
+
         dataField.name = "GalaxyID";
         dataField.type = "BIGINT";
         databaseFields.push_back(dataField);
