@@ -335,6 +335,8 @@ namespace Sage {
             *(float*)(result) = datarow.SfrBulgeZ;
         } else if (thisItem->getDataObjName().compare("ZgasDisk") == 0) {
             *(float*)(result) = datarow.MetalsColdGas/datarow.ColdGas;
+        } else if (thisItem->getDataObjName().compare("MZgasDisk") == 0) {
+            *(float*)(result) = datarow.MetalsColdGas*1e10;
         } else if (thisItem->getDataObjName().compare("MZhotHalo") == 0) {
             *(float*)(result) = datarow.MetalsHotGas*1.e10;
         } else if (thisItem->getDataObjName().compare("MZstarSpheroid") == 0) {
