@@ -176,11 +176,7 @@ namespace Sage {
         dataField.type = "FLOAT";
         databaseFields.push_back(dataField);
 
-        dataField.name = "ZgasSpheroid";
-        dataField.type = "FLOAT";
-        databaseFields.push_back(dataField);
-
-        dataField.name = "ZgasDisk";
+        dataField.name = "MZgasDisk";
         dataField.type = "FLOAT";
         databaseFields.push_back(dataField);
 

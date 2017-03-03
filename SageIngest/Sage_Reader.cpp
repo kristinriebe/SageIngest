@@ -331,10 +331,6 @@ namespace Sage {
             *(float*)(result) = datarow.SfrDisk*h*1.e9;
         } else if (thisItem->getDataObjName().compare("SFR") == 0) {
             *(float*)(result) = (datarow.SfrBulge + datarow.SfrDisk)*h*1.e9;
-        } else if (thisItem->getDataObjName().compare("ZgasSpheroid") == 0) {
-            *(float*)(result) = datarow.SfrBulgeZ;
-        } else if (thisItem->getDataObjName().compare("ZgasDisk") == 0) {
-            *(float*)(result) = datarow.MetalsColdGas/datarow.ColdGas;
         } else if (thisItem->getDataObjName().compare("MZgasDisk") == 0) {
             *(float*)(result) = datarow.MetalsColdGas*1e10;
         } else if (thisItem->getDataObjName().compare("MZhotHalo") == 0) {
